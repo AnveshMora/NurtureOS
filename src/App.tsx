@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout';
 import { useSettingsStore } from './store';
 import { useActiveChild } from './hooks/useActiveChild';
+import { useSync } from './hooks/useSync';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { WeekPlannerPage } from './pages/WeekPlannerPage';
@@ -13,6 +14,9 @@ import { SettingsPage } from './pages/SettingsPage';
 function AppRoutes() {
   const hasCompletedOnboarding = useSettingsStore((s) => s.hasCompletedOnboarding);
   const { hasChildren } = useActiveChild();
+
+  // Activate sync when VITE_SYNC_URL is set
+  useSync();
 
   if (!hasCompletedOnboarding || !hasChildren) {
     return (
