@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* === Kite-Inspired Design Tokens === */
+@theme {
+  /* Primary palette - warm amber for nurturing feel */
+  --color-primary-50: #fffbeb;
+  --color-primary-100: #fef3c7;
+  --color-primary-200: #fde68a;
+  --color-primary-300: #fcd34d;
+  --color-primary-400: #fbbf24;
+  --color-primary-500: #f59e0b;
+  --color-primary-600: #d97706;
+  --color-primary-700: #b45309;
+  --color-primary-800: #92400e;
+  --color-primary-900: #78350f;
+
+  /* Neutral palette - clean grays like Kite */
+  --color-surface-0: #ffffff;
+  --color-surface-50: #f9fafb;
+  --color-surface-100: #f3f4f6;
+  --color-surface-200: #e5e7eb;
+  --color-surface-300: #d1d5db;
+  --color-surface-400: #9ca3af;
+  --color-surface-500: #6b7280;
+  --color-surface-600: #4b5563;
+  --color-surface-700: #374151;
+  --color-surface-800: #1f2937;
+  --color-surface-900: #111827;
+
+  /* Status colors */
+  --color-status-completed: #10b981;
+  --color-status-in-progress: #f59e0b;
+  --color-status-pending: #9ca3af;
+  --color-status-skipped: #8b5cf6;
+  --color-status-blocked: #ef4444;
+  --color-status-gotcha: #ef4444;
+
+  /* Skill node colors */
+  --color-skill-curiosity: #3b82f6;
+  --color-skill-first-principles: #8b5cf6;
+  --color-skill-problem-solving: #06b6d4;
+  --color-skill-communication: #10b981;
+  --color-skill-grit: #f59e0b;
+  --color-skill-arts: #ec4899;
+
+  /* Typography - system font stack like Kite */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+
+  /* Font sizes - Kite-inspired compact hierarchy */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.25rem;
+  --text-3xl: 1.5rem;
+}
+
+/* === Base Styles === */
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  @apply bg-surface-50 text-surface-800 font-sans text-base;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === Scrollbar - minimal like Kite === */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-300);
+  border-radius: 2px;
+}
+
+/* === Focus styles === */
+*:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
