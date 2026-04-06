@@ -42,4 +42,14 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  preview: {
+    port: 4174,
+    allowedHosts: ['.ngrok-free.dev', '.ngrok.io'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4174',
+        changeOrigin: true,
+      },
+    },
+  },
 })
