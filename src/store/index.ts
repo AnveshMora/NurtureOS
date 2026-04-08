@@ -3,3 +3,5 @@ export { useActivityStore } from './activityStore';
 export { useWeekPlanStore } from './weekPlanStore';
 export { useReviewStore } from './reviewStore';
 export { useSettingsStore } from './settingsStore';
+export { useMonthPlanStore } from './monthPlanStore';
+export { useYearPlanStore } from './yearPlanStore';

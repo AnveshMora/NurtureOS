@@ -1,0 +1,35 @@
+{
+  "type": "weekly",
+  "weekNumber": 15,
+  "year": 2026,
+  "activities": [
+    { "activityId": "act-pouring", "day": "mon", "slot": "morning" },
+    { "activityId": "act-read-aloud", "day": "mon", "slot": "evening" },
+    { "activityId": "act-sorting", "day": "tue", "slot": "morning" },
+    { "activityId": "act-free-drawing", "day": "tue", "slot": "afternoon" },
+    { "activityId": "act-nature-walk", "day": "wed", "slot": "morning" },
+    { "activityId": "act-block-tower", "day": "thu", "slot": "morning" },
+    { "activityId": "act-show-tell", "day": "fri", "slot": "morning" },
+    {
+      "inline": true,
+      "title": "Leaf Rubbings",
+      "category": "arts-movement",
+      "duration": "20min",
+      "materials": ["Collected leaves", "Paper", "Crayons"],
+      "instructions": [
+        "Place a leaf under paper.",
+        "Rub crayon over the paper to reveal the leaf pattern.",
+        "Try different leaves and colors."
+      ],
+      "parentPrompts": ["What patterns do you see?", "Which leaf made the best rubbing?"],
+      "skillMapping": { "curiosity": 4, "arts": 5, "communication": 3 },
+      "day": "fri",
+      "slot": "afternoon"
+    }
+  ],
+  "importantNotToMiss": [
+    "15 min uninterrupted concentration daily",
+    "One read-aloud session daily"
+  ],
+  "gotchas": ["Too much help", "Over-correcting mistakes"]
+}

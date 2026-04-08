@@ -1,0 +1,51 @@
+{
+  "type": "monthly",
+  "month": 4,
+  "year": 2026,
+  "theme": "Practical Life & Independence",
+  "supportThemes": ["Sensorial Awareness", "Language Development"],
+  "mustNotMiss": "At least one real-world practical task every day",
+  "gotchaRisk": "Too much help — wait 30 seconds before stepping in",
+  "weeks": [
+    {
+      "weekNumber": 14,
+      "activities": [
+        { "activityId": "act-pouring", "day": "mon", "slot": "morning" },
+        { "activityId": "act-table-setting", "day": "tue", "slot": "morning" },
+        { "activityId": "act-read-aloud", "day": "wed", "slot": "evening" },
+        { "activityId": "act-sorting", "day": "thu", "slot": "morning" },
+        { "activityId": "act-free-drawing", "day": "fri", "slot": "afternoon" }
+      ]
+    },
+    {
+      "weekNumber": 15,
+      "activities": [
+        { "activityId": "act-dressing", "day": "mon", "slot": "morning" },
+        { "activityId": "act-texture-walk", "day": "tue", "slot": "morning" },
+        { "activityId": "act-read-aloud", "day": "wed", "slot": "evening" },
+        { "activityId": "act-puzzle", "day": "thu", "slot": "morning" },
+        { "activityId": "act-playdough", "day": "fri", "slot": "afternoon" }
+      ]
+    },
+    {
+      "weekNumber": 16,
+      "activities": [
+        { "activityId": "act-sweeping", "day": "mon", "slot": "morning" },
+        { "activityId": "act-sound-matching", "day": "tue", "slot": "morning" },
+        { "activityId": "act-storytelling-pictures", "day": "wed", "slot": "morning" },
+        { "activityId": "act-counting-objects", "day": "thu", "slot": "morning" },
+        { "activityId": "act-dance-movement", "day": "fri", "slot": "afternoon" }
+      ]
+    },
+    {
+      "weekNumber": 17,
+      "activities": [
+        { "activityId": "act-cooking-together", "day": "mon", "slot": "morning" },
+        { "activityId": "act-nature-walk", "day": "tue", "slot": "morning" },
+        { "activityId": "act-read-aloud", "day": "wed", "slot": "evening" },
+        { "activityId": "act-block-tower", "day": "thu", "slot": "morning" },
+        { "activityId": "act-collage", "day": "fri", "slot": "afternoon" }
+      ]
+    }
+  ]
+}

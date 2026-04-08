@@ -1,0 +1,63 @@
+{
+  "type": "yearly",
+  "year": 2026,
+  "ageBand": "3-4",
+  "goals": [
+    "Sustained attention for 15-20 minutes",
+    "Fine motor mastery with pouring, cutting, drawing",
+    "Early problem solving with puzzles and building",
+    "Expressive language through storytelling and narration"
+  ],
+  "months": [
+    {
+      "month": 1,
+      "theme": "Practical Life Foundation",
+      "supportThemes": ["Sensorial", "Language"],
+      "mustNotMiss": "Daily 15-min concentration block",
+      "gotchaRisk": "Over-correcting mistakes",
+      "weeks": [
+        {
+          "weekNumber": 1,
+          "activities": [
+            { "activityId": "act-pouring", "day": "mon", "slot": "morning" },
+            { "activityId": "act-read-aloud", "day": "tue", "slot": "evening" },
+            { "activityId": "act-sorting", "day": "wed", "slot": "morning" }
+          ]
+        },
+        {
+          "weekNumber": 2,
+          "activities": [
+            { "activityId": "act-table-setting", "day": "mon", "slot": "morning" },
+            { "activityId": "act-texture-walk", "day": "wed", "slot": "morning" },
+            { "activityId": "act-free-drawing", "day": "fri", "slot": "afternoon" }
+          ]
+        }
+      ]
+    },
+    {
+      "month": 2,
+      "theme": "Sensorial Exploration",
+      "supportThemes": ["Nature & Science", "Arts"],
+      "mustNotMiss": "One nature observation per week",
+      "gotchaRisk": "Too many activities at once",
+      "weeks": [
+        {
+          "weekNumber": 5,
+          "activities": [
+            { "activityId": "act-sound-matching", "day": "mon", "slot": "morning" },
+            { "activityId": "act-nature-walk", "day": "wed", "slot": "morning" },
+            { "activityId": "act-playdough", "day": "fri", "slot": "afternoon" }
+          ]
+        },
+        {
+          "weekNumber": 6,
+          "activities": [
+            { "activityId": "act-sink-float", "day": "mon", "slot": "morning" },
+            { "activityId": "act-plant-seed", "day": "wed", "slot": "morning" },
+            { "activityId": "act-dance-movement", "day": "fri", "slot": "afternoon" }
+          ]
+        }
+      ]
+    }
+  ]
+}

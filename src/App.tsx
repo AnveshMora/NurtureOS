@@ -10,6 +10,7 @@ import { ActivityLibraryPage } from './pages/ActivityLibraryPage';
 import { ActivityDetailPage } from './pages/ActivityDetailPage';
 import { WeekendReviewPage } from './pages/WeekendReviewPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ImportExportPage } from './pages/ImportExportPage';
 
 function AppRoutes() {
   const hasCompletedOnboarding = useSettingsStore((s) => s.hasCompletedOnboarding);
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="/activities/:activityId" element={<ActivityDetailPage />} />
         <Route path="/review" element={<WeekendReviewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/import-export" element={<ImportExportPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

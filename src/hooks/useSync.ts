@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useChildStore, useWeekPlanStore, useReviewStore, useActivityStore } from '../store';
+import { useChildStore, useWeekPlanStore, useReviewStore, useActivityStore, useMonthPlanStore, useYearPlanStore } from '../store';
 
 const SYNC_URL = import.meta.env.VITE_SYNC_URL ?? 'http://localhost:3001';
 const SYNC_INTERVAL = 60_000; // 1 minute
@@ -9,6 +9,8 @@ interface SyncState {
   weekPlans: unknown[];
   reviews: unknown[];
   activities: unknown[];
+  monthPlans: unknown[];
+  yearPlans: unknown[];
   settings: Record<string, unknown>;
   updatedAt: string;
 }
@@ -26,15 +28,19 @@ export function useSync() {
   const weekPlans = useWeekPlanStore((s) => s.weekPlans);
   const reviews = useReviewStore((s) => s.reviews);
   const activities = useActivityStore((s) => s.activities);
+  const monthPlans = useMonthPlanStore((s) => s.monthPlans);
+  const yearPlans = useYearPlanStore((s) => s.yearPlans);
 
   const getClientState = useCallback((): SyncState => ({
     children,
     weekPlans,
     reviews,
     activities,
+    monthPlans,
+    yearPlans,
     settings: {},
     updatedAt: new Date().toISOString(),
-  }), [children, weekPlans, reviews, activities]);
+  }), [children, weekPlans, reviews, activities, monthPlans, yearPlans]);
 
   const applyServerState = useCallback((server: SyncState) => {
     skipNextSubRef.current = true;
@@ -51,6 +57,12 @@ export function useSync() {
     }
     if (server.activities?.length) {
       useActivityStore.setState({ activities: server.activities as typeof activities });
+    }
+    if (server.monthPlans?.length) {
+      useMonthPlanStore.setState({ monthPlans: server.monthPlans as typeof monthPlans });
+    }
+    if (server.yearPlans?.length) {
+      useYearPlanStore.setState({ yearPlans: server.yearPlans as typeof yearPlans });
     }
   }, []);
 
@@ -115,6 +127,14 @@ export function useSync() {
         sync();
       }),
       useReviewStore.subscribe(() => {
+        if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
+        sync();
+      }),
+      useMonthPlanStore.subscribe(() => {
+        if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
+        sync();
+      }),
+      useYearPlanStore.subscribe(() => {
         if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
         sync();
       }),

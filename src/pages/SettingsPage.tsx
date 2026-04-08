@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { nanoid } from 'nanoid';
 import { Card, Button, Input, Modal } from '../components/ui';
 import { useChildStore } from '../store';
@@ -98,6 +99,27 @@ export function SettingsPage() {
             </Card>
           ))}
         </div>
+      </section>
+
+      {/* Import / Export */}
+      <section>
+        <h2 className="text-sm font-semibold text-surface-700 uppercase tracking-wide mb-3">Data</h2>
+        <Link to="/import-export">
+          <Card hover>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">📦</span>
+                <div>
+                  <div className="text-sm font-medium text-surface-800">Import & Export Plans</div>
+                  <div className="text-xs text-surface-400">Import JSON plans or export existing ones</div>
+                </div>
+              </div>
+              <svg className="w-4 h-4 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </Card>
+        </Link>
       </section>
 
       {/* About */}
