@@ -17,51 +17,45 @@ interface SyncState {
 
 /**
  * useSync — bidirectional sync with backend.
- * Uses skipNextSubRef to prevent feedback loops (FocusFlow pattern).
+ * Reads stores at call-time via getState() to avoid re-render loops.
  * Only active when VITE_SYNC_URL is set.
  */
 export function useSync() {
   const skipNextSubRef = useRef(false);
   const syncingRef = useRef(false);
 
-  const children = useChildStore((s) => s.children);
-  const weekPlans = useWeekPlanStore((s) => s.weekPlans);
-  const reviews = useReviewStore((s) => s.reviews);
-  const activities = useActivityStore((s) => s.activities);
-  const monthPlans = useMonthPlanStore((s) => s.monthPlans);
-  const yearPlans = useYearPlanStore((s) => s.yearPlans);
-
+  // Stable: reads from stores at call time, no reactive deps
   const getClientState = useCallback((): SyncState => ({
-    children,
-    weekPlans,
-    reviews,
-    activities,
-    monthPlans,
-    yearPlans,
+    children: useChildStore.getState().children,
+    weekPlans: useWeekPlanStore.getState().weekPlans,
+    reviews: useReviewStore.getState().reviews,
+    activities: useActivityStore.getState().activities,
+    monthPlans: useMonthPlanStore.getState().monthPlans,
+    yearPlans: useYearPlanStore.getState().yearPlans,
     settings: {},
     updatedAt: new Date().toISOString(),
-  }), [children, weekPlans, reviews, activities, monthPlans, yearPlans]);
+  }), []);
 
   const applyServerState = useCallback((server: SyncState) => {
     skipNextSubRef.current = true;
 
     if (server.children?.length) {
-      useChildStore.setState({ children: server.children as typeof children });
+      useChildStore.setState({ children: server.children as ReturnType<typeof useChildStore.getState>['children'] });
     }
     if (server.weekPlans?.length) {
-      useWeekPlanStore.setState({ weekPlans: server.weekPlans as typeof weekPlans });
+      useWeekPlanStore.setState({ weekPlans: server.weekPlans as ReturnType<typeof useWeekPlanStore.getState>['weekPlans'] });
     }
     if (server.reviews?.length) {
-      useReviewStore.setState({ reviews: server.reviews as typeof reviews });
+      useReviewStore.setState({ reviews: server.reviews as ReturnType<typeof useReviewStore.getState>['reviews'] });
     }
     if (server.activities?.length) {
-      useActivityStore.setState({ activities: server.activities as typeof activities });
+      useActivityStore.setState({ activities: server.activities as ReturnType<typeof useActivityStore.getState>['activities'] });
     }
     if (server.monthPlans?.length) {
-      useMonthPlanStore.setState({ monthPlans: server.monthPlans as typeof monthPlans });
+      useMonthPlanStore.setState({ monthPlans: server.monthPlans as ReturnType<typeof useMonthPlanStore.getState>['monthPlans'] });
     }
     if (server.yearPlans?.length) {
-      useYearPlanStore.setState({ yearPlans: server.yearPlans as typeof yearPlans });
+      useYearPlanStore.setState({ yearPlans: server.yearPlans as ReturnType<typeof useYearPlanStore.getState>['yearPlans'] });
     }
 
     // Reset after all synchronous subscription callbacks have fired
@@ -90,11 +84,10 @@ export function useSync() {
     }
   }, [getClientState, applyServerState]);
 
-  // Sync on interval
+  // Sync on interval (sync reference is now stable — effect runs once)
   useEffect(() => {
     if (!import.meta.env.VITE_SYNC_URL) return;
 
-    // Initial sync
     sync();
 
     const interval = setInterval(sync, SYNC_INTERVAL);
