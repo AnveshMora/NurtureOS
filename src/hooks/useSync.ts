@@ -45,7 +45,6 @@ export function useSync() {
   const applyServerState = useCallback((server: SyncState) => {
     skipNextSubRef.current = true;
 
-    // Only apply if server has data
     if (server.children?.length) {
       useChildStore.setState({ children: server.children as typeof children });
     }
@@ -64,6 +63,9 @@ export function useSync() {
     if (server.yearPlans?.length) {
       useYearPlanStore.setState({ yearPlans: server.yearPlans as typeof yearPlans });
     }
+
+    // Reset after all synchronous subscription callbacks have fired
+    queueMicrotask(() => { skipNextSubRef.current = false; });
   }, []);
 
   const sync = useCallback(async () => {
@@ -113,34 +115,33 @@ export function useSync() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [sync]);
 
-  // Subscribe to store changes and sync (with feedback loop prevention)
+  // Subscribe to store changes and sync (with feedback loop prevention + debounce)
   useEffect(() => {
     if (!import.meta.env.VITE_SYNC_URL) return;
 
+    let debounceTimer: ReturnType<typeof setTimeout>;
+    const debouncedSync = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(sync, 500);
+    };
+
+    const guard = () => {
+      if (skipNextSubRef.current) return;
+      debouncedSync();
+    };
+
     const unsubs = [
-      useChildStore.subscribe(() => {
-        if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
-        sync();
-      }),
-      useWeekPlanStore.subscribe(() => {
-        if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
-        sync();
-      }),
-      useReviewStore.subscribe(() => {
-        if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
-        sync();
-      }),
-      useMonthPlanStore.subscribe(() => {
-        if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
-        sync();
-      }),
-      useYearPlanStore.subscribe(() => {
-        if (skipNextSubRef.current) { skipNextSubRef.current = false; return; }
-        sync();
-      }),
+      useChildStore.subscribe(guard),
+      useWeekPlanStore.subscribe(guard),
+      useReviewStore.subscribe(guard),
+      useMonthPlanStore.subscribe(guard),
+      useYearPlanStore.subscribe(guard),
     ];
 
-    return () => unsubs.forEach((unsub) => unsub());
+    return () => {
+      clearTimeout(debounceTimer);
+      unsubs.forEach((unsub) => unsub());
+    };
   }, [sync]);
 
   return { sync };
