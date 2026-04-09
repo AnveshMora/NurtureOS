@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useChildStore, useWeekPlanStore, useReviewStore, useActivityStore, useMonthPlanStore, useYearPlanStore } from '../store';
 
 const SYNC_URL = import.meta.env.VITE_SYNC_URL ?? 'http://localhost:3001';
-const SYNC_INTERVAL = 60_000; // 1 minute
+const SYNC_INTERVAL = 30_000; // 30 seconds
 
 interface SyncState {
   children: unknown[];
@@ -17,14 +17,15 @@ interface SyncState {
 
 /**
  * useSync — bidirectional sync with backend.
- * Reads stores at call-time via getState() to avoid re-render loops.
+ *
+ * Syncs on: mount, 30s interval, visibility change, and manual trigger.
+ * No store subscriptions — avoids feedback loops entirely.
  * Only active when VITE_SYNC_URL is set.
  */
 export function useSync() {
-  const skipNextSubRef = useRef(false);
   const syncingRef = useRef(false);
+  const lastHashRef = useRef('');
 
-  // Stable: reads from stores at call time, no reactive deps
   const getClientState = useCallback((): SyncState => ({
     children: useChildStore.getState().children,
     weekPlans: useWeekPlanStore.getState().weekPlans,
@@ -36,8 +37,15 @@ export function useSync() {
     updatedAt: new Date().toISOString(),
   }), []);
 
+  // Quick fingerprint to detect if server response has new data
+  const fingerprint = (s: SyncState) =>
+    `${s.children?.length ?? 0}-${s.weekPlans?.length ?? 0}-${s.activities?.length ?? 0}-${s.monthPlans?.length ?? 0}-${s.yearPlans?.length ?? 0}-${s.updatedAt}`;
+
   const applyServerState = useCallback((server: SyncState) => {
-    skipNextSubRef.current = true;
+    // Only apply if server has data the client might not have
+    const hash = fingerprint(server);
+    if (hash === lastHashRef.current) return; // No change — skip
+    lastHashRef.current = hash;
 
     if (server.children?.length) {
       useChildStore.setState({ children: server.children as ReturnType<typeof useChildStore.getState>['children'] });
@@ -57,9 +65,6 @@ export function useSync() {
     if (server.yearPlans?.length) {
       useYearPlanStore.setState({ yearPlans: server.yearPlans as ReturnType<typeof useYearPlanStore.getState>['yearPlans'] });
     }
-
-    // Reset after all synchronous subscription callbacks have fired
-    queueMicrotask(() => { skipNextSubRef.current = false; });
   }, []);
 
   const sync = useCallback(async () => {
@@ -84,12 +89,11 @@ export function useSync() {
     }
   }, [getClientState, applyServerState]);
 
-  // Sync on interval (sync reference is now stable — effect runs once)
+  // Sync on mount + interval
   useEffect(() => {
     if (!import.meta.env.VITE_SYNC_URL) return;
 
     sync();
-
     const interval = setInterval(sync, SYNC_INTERVAL);
     return () => clearInterval(interval);
   }, [sync]);
@@ -99,42 +103,11 @@ export function useSync() {
     if (!import.meta.env.VITE_SYNC_URL) return;
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        sync();
-      }
+      if (document.visibilityState === 'visible') sync();
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [sync]);
-
-  // Subscribe to store changes and sync (with feedback loop prevention + debounce)
-  useEffect(() => {
-    if (!import.meta.env.VITE_SYNC_URL) return;
-
-    let debounceTimer: ReturnType<typeof setTimeout>;
-    const debouncedSync = () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(sync, 500);
-    };
-
-    const guard = () => {
-      if (skipNextSubRef.current) return;
-      debouncedSync();
-    };
-
-    const unsubs = [
-      useChildStore.subscribe(guard),
-      useWeekPlanStore.subscribe(guard),
-      useReviewStore.subscribe(guard),
-      useMonthPlanStore.subscribe(guard),
-      useYearPlanStore.subscribe(guard),
-    ];
-
-    return () => {
-      clearTimeout(debounceTimer);
-      unsubs.forEach((unsub) => unsub());
-    };
   }, [sync]);
 
   return { sync };
