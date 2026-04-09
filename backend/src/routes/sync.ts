@@ -23,6 +23,8 @@ interface SyncState {
   weekPlans: unknown[];
   reviews: unknown[];
   activities: unknown[];
+  monthPlans: unknown[];
+  yearPlans: unknown[];
   settings: Record<string, unknown>;
   updatedAt: string;
 }
@@ -35,6 +37,8 @@ async function readState(): Promise<SyncState> {
         weekPlans: [],
         reviews: [],
         activities: [],
+        monthPlans: [],
+        yearPlans: [],
         settings: {},
         updatedAt: new Date().toISOString(),
       };
@@ -47,6 +51,8 @@ async function readState(): Promise<SyncState> {
       weekPlans: [],
       reviews: [],
       activities: [],
+      monthPlans: [],
+      yearPlans: [],
       settings: {},
       updatedAt: new Date().toISOString(),
     };
@@ -114,6 +120,8 @@ syncRouter.post('/merge', async (req, res) => {
         weekPlans: mergeArrays(client.weekPlans ?? [], server.weekPlans),
         reviews: mergeArrays(client.reviews ?? [], server.reviews),
         activities: mergeArrays(client.activities ?? [], server.activities),
+        monthPlans: mergeArrays(client.monthPlans ?? [], server.monthPlans),
+        yearPlans: mergeArrays(client.yearPlans ?? [], server.yearPlans),
         settings: {
           ...server.settings,
           ...Object.fromEntries(
