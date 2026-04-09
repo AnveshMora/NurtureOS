@@ -284,10 +284,40 @@ export function ImportExportPage() {
               </div>
             )}
 
-            {/* Success */}
-            {importSuccess && (
+            {/* Status Indicator */}
+            {importStatus === 'reading' && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-blue-700 font-medium">Reading files…</span>
+              </div>
+            )}
+            {importStatus === 'validating' && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-blue-700 font-medium">Validating & preparing preview…</span>
+              </div>
+            )}
+            {importStatus === 'importing' && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="h-4 w-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-amber-700 font-medium">Importing plan…</span>
+              </div>
+            )}
+            {importStatus === 'done' && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <div className="text-sm text-emerald-700 font-medium">✓ Plan imported successfully!</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-emerald-600 text-lg">✓</span>
+                  <div>
+                    <div className="text-sm text-emerald-700 font-medium">Import complete!</div>
+                    {importSummary && <div className="text-xs text-emerald-600 mt-0.5">{importSummary}</div>}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setImportStatus('idle'); setImportSummary(''); }}
+                  className="text-xs text-emerald-500 underline mt-2"
+                >
+                  Dismiss
+                </button>
               </div>
             )}
           </div>
