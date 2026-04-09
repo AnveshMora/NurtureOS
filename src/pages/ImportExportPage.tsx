@@ -9,6 +9,7 @@ import {
   type PlanImport, type ImportPreview, type StoreAccessors, type PreviewAction,
 } from '../lib/importPlan';
 import { exportWeekPlan, exportMonthPlan, exportYearPlan, downloadJSON } from '../lib/exportPlan';
+import { parseDatasetFiles, adaptDataset } from '../lib/datasetAdapter';
 
 const ACTION_STYLES: Record<PreviewAction, { bg: string; text: string; label: string }> = {
   create: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: '✨ New' },
@@ -19,14 +20,18 @@ const ACTION_STYLES: Record<PreviewAction, { bg: string; text: string; label: st
 export function ImportExportPage() {
   const { child } = useActiveChild();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const datasetInputRef = useRef<HTMLInputElement>(null);
 
   // Import state
-
   const [importData, setImportData] = useState<PlanImport | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
-  const [importSuccess, setImportSuccess] = useState(false);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [importStatus, setImportStatus] = useState<
+    'idle' | 'reading' | 'validating' | 'ready' | 'importing' | 'done'
+  >('idle');
+  const [importSummary, setImportSummary] = useState('');
 
   // Store accessors
   const activityStore = useActivityStore();
@@ -52,10 +57,14 @@ export function ImportExportPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImportStatus('reading');
+    setErrors([]);
+    setWarnings([]);
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = evt.target?.result as string;
-      setImportSuccess(false);
+      setImportStatus('validating');
 
       try {
         const parsed = JSON.parse(text);
@@ -65,6 +74,7 @@ export function ImportExportPage() {
           setErrors(result.errors);
           setImportData(null);
           setPreview(null);
+          setImportStatus('idle');
           return;
         }
 
@@ -74,33 +84,101 @@ export function ImportExportPage() {
         if (child) {
           const prev = generatePreview(result.data, child.id, storeAccessors);
           setPreview(prev);
+          setImportStatus('ready');
           setShowPreview(true);
         }
       } catch {
         setErrors(['Invalid JSON file — could not parse']);
         setImportData(null);
         setPreview(null);
+        setImportStatus('idle');
       }
     };
     reader.readAsText(file);
-    // Reset so same file can be re-selected
+    e.target.value = '';
+  }, [child, storeAccessors]);
+
+  const handleDatasetSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    setImportStatus('reading');
+    setErrors([]);
+    setWarnings([]);
+
+    const entries: { name: string; content: string }[] = [];
+    let loaded = 0;
+
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        entries.push({ name: file.name, content: evt.target?.result as string });
+        loaded++;
+
+        if (loaded === fileList.length) {
+          setImportStatus('validating');
+
+          const { files, errors: parseErrors } = parseDatasetFiles(entries);
+          if (parseErrors.length > 0) {
+            setErrors(parseErrors);
+          }
+
+          const result = adaptDataset(files);
+          if (!result.valid || !result.data) {
+            setErrors((prev) => [...prev, ...result.errors]);
+            setWarnings(result.warnings);
+            setImportData(null);
+            setPreview(null);
+            setImportStatus('idle');
+            return;
+          }
+
+          setWarnings(result.warnings);
+          setImportData(result.data);
+
+          if (child) {
+            const prev = generatePreview(result.data, child.id, storeAccessors);
+            prev.warnings = [...result.warnings, ...prev.warnings];
+            setPreview(prev);
+            setImportStatus('ready');
+            setShowPreview(true);
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
+
     e.target.value = '';
   }, [child, storeAccessors]);
 
   const handleConfirmImport = useCallback(() => {
     if (!importData || !child) return;
-    applyImport(importData, child.id, storeAccessors);
-    setImportSuccess(true);
-    setShowPreview(false);
-    setImportData(null);
-    setPreview(null);
-  }, [importData, child, storeAccessors]);
+    setImportStatus('importing');
+
+    // Small delay to show the "importing" state visually
+    setTimeout(() => {
+      applyImport(importData, child.id, storeAccessors);
+
+      const summary = preview
+        ? `${preview.type} plan · ${preview.totalNewActivities} activities added · ${preview.totalNewWeeks} new week(s)`
+        : 'Plan imported';
+
+      setImportSummary(summary);
+      setImportStatus('done');
+      setShowPreview(false);
+      setImportData(null);
+      setPreview(null);
+    }, 100);
+  }, [importData, child, storeAccessors, preview]);
 
   const handleCancelImport = useCallback(() => {
     setShowPreview(false);
     setImportData(null);
     setPreview(null);
     setErrors([]);
+    setWarnings([]);
+    setImportStatus('idle');
   }, []);
 
   // Export handlers
@@ -147,7 +225,7 @@ export function ImportExportPage() {
         <Card>
           <div className="space-y-3">
             <p className="text-sm text-surface-500">
-              Upload a JSON file with a weekly, monthly, or yearly plan. You'll see a preview before anything changes.
+              Upload a single NurtureOS JSON file, or select multiple dataset files (activity_library, weeks, months, year).
             </p>
 
             <input
@@ -158,12 +236,33 @@ export function ImportExportPage() {
               className="hidden"
             />
 
-            <Button
-              variant="secondary"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              📁 Choose JSON File
-            </Button>
+            <input
+              ref={datasetInputRef}
+              type="file"
+              accept=".json,application/json"
+              multiple
+              onChange={handleDatasetSelect}
+              className="hidden"
+            />
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                📁 Single JSON File
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => datasetInputRef.current?.click()}
+              >
+                📂 Dataset (Multiple Files)
+              </Button>
+            </div>
+
+            <p className="text-xs text-surface-400">
+              Dataset import: select all your JSON files at once — activity_library.json, weeks.json, months.json, year.json
+            </p>
 
             {/* Errors */}
             {errors.length > 0 && (
@@ -171,6 +270,16 @@ export function ImportExportPage() {
                 <div className="text-xs font-semibold text-red-700 uppercase mb-1">Validation Errors</div>
                 {errors.map((err, i) => (
                   <div key={i} className="text-sm text-red-600">• {err}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Warnings (outside modal, for dataset parse phase) */}
+            {warnings.length > 0 && !showPreview && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="text-xs font-semibold text-amber-700 uppercase mb-1">⚠️ Warnings</div>
+                {warnings.map((w, i) => (
+                  <div key={i} className="text-sm text-amber-600">• {w}</div>
                 ))}
               </div>
             )}
