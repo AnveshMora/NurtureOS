@@ -1,3 +1,21 @@
+# NurtureOS — AI Assistant Instructions
+
+> **Updated 2026-04-29 by `/sdlc:init`.** The newer, project-specific knowledge base lives under `.github/knowledge/` and is indexed by `.github/ai-sdlc-config.yml`. Read those first for build commands, the domain model, the architecture, the sync contract, and first-time-setup checklists. The sections below are legacy guidance from the FocusFlow era — the **Hard Bugs** and **PWA Gotchas** rules are still load-bearing for NurtureOS (sync mutex, no dev SW, no store-subscription-driven sync), so they remain in force.
+
+## Knowledge base
+
+- `CLAUDE.md` (repo root) — entry point summary.
+- `.github/ai-sdlc-config.yml` — build/test/lint commands, conventions.
+- `.github/knowledge/architecture.md` — frontend layers, sync flow, "when adding new code".
+- `.github/knowledge/domain-model.md` — entities, `updatedAt` contract, equality traps.
+- `.github/knowledge/build-system.md` — scripts, tsconfig, env vars.
+- `.github/knowledge/infrastructure-checklists.md` — checklists for adding stores, routes, HTTP calls, PWA changes.
+- `.github/knowledge/test-patterns.md` — there are no tests yet; conventions documented for when there are.
+- `.github/knowledge/lessons-learned.md` — append-only log.
+- `.github/git-commit-instructions.md` — Conventional Commits, no ticket prefix.
+
+---
+
 ## Workflow Orchestration
 
 ### 1. Plan Mode Default
