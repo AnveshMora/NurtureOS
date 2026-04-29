@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { getCurrentWeekNumber, getCurrentYear, navigateWeek, formatWeekRange, getWeekRange } from '../lib/dateUtils';
 
-export function useCurrentWeek() {
-  const [weekNumber, setWeekNumber] = useState(getCurrentWeekNumber);
-  const [year, setYear] = useState(getCurrentYear);
+export function useCurrentWeek(initial?: { weekNumber: number; year: number }) {
+  const [weekNumber, setWeekNumber] = useState(() => initial?.weekNumber ?? getCurrentWeekNumber());
+  const [year, setYear] = useState(() => initial?.year ?? getCurrentYear());
 
   const goNext = () => {
     const next = navigateWeek(weekNumber, year, 'next');

@@ -6,11 +6,18 @@
  * resolution of string references between files.
  */
 
+import { addWeeks, getISOWeek, getMonth, getYear } from 'date-fns';
 import type { ActivityCategory, ActivityDuration } from '../types/activity';
 import type { AgeBand } from '../types/child';
 import type { SkillNode } from '../types/skillNode';
 import type { MonthNumber } from '../types/monthPlan';
 import type { YearlyImport, MonthlyImport, WeeklyImport } from './importPlan';
+import { getCurrentWeekNumber, getCurrentYear, getWeekRange } from './dateUtils';
+
+export interface AdaptOptions {
+  childAgeBand?: AgeBand;
+  anchorToCurrent?: boolean;
+}
 
 // ======== Raw dataset shapes (what the external files look like) ========
 
@@ -137,12 +144,36 @@ function mapSkills(raw?: Record<string, number>): Partial<Record<SkillNode, numb
   return mapped;
 }
 
-function mapAgeBand(raw?: string): AgeBand {
-  if (!raw) return '2-3';
+function mapAgeBand(raw?: string, fallback?: AgeBand): { band: AgeBand; warning?: string } {
   const valid: AgeBand[] = ['2-3', '3-4', '4-5', '5-6'];
-  if (valid.includes(raw as AgeBand)) return raw as AgeBand;
-  // Handle "2-6" or other ranges — default to youngest
-  return '2-3';
+  if (!raw) return { band: fallback ?? '2-3' };
+  if (valid.includes(raw as AgeBand)) return { band: raw as AgeBand };
+  const resolved = fallback ?? '2-3';
+  return {
+    band: resolved,
+    warning: `ageBand "${raw}" is an umbrella range — using "${resolved}"${fallback ? " (active child's band)" : ' (default)'}.`,
+  };
+}
+
+function relativeWeekToAbsolute(
+  relativeWeek: number,
+  anchorWeek: number,
+  anchorYear: number,
+): { weekNumber: number; year: number } {
+  const { start } = getWeekRange(anchorWeek, anchorYear);
+  const target = addWeeks(start, Math.max(0, relativeWeek - 1));
+  return { weekNumber: getISOWeek(target), year: getYear(target) };
+}
+
+function relativeMonthToAbsolute(
+  relativeMonth: number,
+  anchorMonth: MonthNumber,
+  anchorYear: number,
+): { month: MonthNumber; year: number } {
+  const zeroBased = (anchorMonth - 1) + Math.max(0, relativeMonth - 1);
+  const yearOffset = Math.floor(zeroBased / 12);
+  const month = ((zeroBased % 12) + 1) as MonthNumber;
+  return { month, year: anchorYear + yearOffset };
 }
 
 function parseNumber(s: string, prefix: string): number {
@@ -156,16 +187,44 @@ function parseNumber(s: string, prefix: string): number {
 
 export function adaptDataset(
   files: DatasetFiles,
-  year?: number,
+  options: AdaptOptions = {},
 ): DatasetResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const currentYear = year ?? new Date().getFullYear();
 
   const activities = files.activityLibrary?.activities ?? [];
   const rawWeeks = files.weeks?.weeks ?? [];
   const rawMonths = files.months?.months ?? [];
   const rawYear = files.year;
+
+  const datasetYear = rawYear?.year;
+  const anchorMode = datasetYear === undefined && options.anchorToCurrent !== false;
+  const currentYear = datasetYear ?? getCurrentYear();
+  const anchorWeek = anchorMode ? getCurrentWeekNumber() : 1;
+  const anchorMonth = anchorMode ? ((getMonth(new Date()) + 1) as MonthNumber) : (1 as MonthNumber);
+
+  if (anchorMode) {
+    warnings.push(
+      `No "year" set in dataset — anchoring "Week 1 / Month 1" to your current week (week ${anchorWeek}, ${currentYear}). Disable the toggle to keep the dataset's literal numbering.`,
+    );
+  }
+
+  const detectedCategoryWarnings = new Set<string>();
+  const noteCategoryFallback = (rawCategory: string, mapped: ActivityCategory) => {
+    if (CATEGORY_MAP[rawCategory] === mapped && rawCategory !== mapped && rawCategory !== mapped.replace('-', '_')) {
+      const key = `${rawCategory}->${mapped}`;
+      if (!detectedCategoryWarnings.has(key)) {
+        detectedCategoryWarnings.add(key);
+        warnings.push(`Activity category "${rawCategory}" mapped to "${mapped}" — closest available bucket.`);
+      }
+    } else if (!CATEGORY_MAP[rawCategory]) {
+      const key = `${rawCategory}->fallback`;
+      if (!detectedCategoryWarnings.has(key)) {
+        detectedCategoryWarnings.add(key);
+        warnings.push(`Activity category "${rawCategory}" is unknown — defaulted to "practical-life".`);
+      }
+    }
+  };
 
   if (activities.length === 0) {
     errors.push('No activities found in activity_library.json');
@@ -191,10 +250,15 @@ export function adaptDataset(
       warnings.push(`Activity "${actId}" not found in library — skipping`);
       return null;
     }
+    const category = mapCategory(raw.category);
+    noteCategoryFallback(raw.category, category);
+    const ageBands = raw.ageBands?.length
+      ? raw.ageBands.map((b) => mapAgeBand(b, options.childAgeBand).band)
+      : (['2-3', '3-4', '4-5', '5-6'] as AgeBand[]);
     return {
       inline: true as const,
       title: raw.title,
-      category: mapCategory(raw.category),
+      category,
       duration: mapDuration(raw.duration_min),
       materials: raw.materials ?? [],
       instructions: raw.instructions ?? [],
@@ -202,7 +266,7 @@ export function adaptDataset(
       expectedBehavior: raw.expectedBehavior ?? raw.objective ?? '',
       commonMistakes: raw.commonMistakes ?? [],
       skillMapping: mapSkills(raw.skillMapping),
-      ageBands: raw.ageBands?.map(mapAgeBand) ?? (['2-3', '3-4', '4-5', '5-6'] as AgeBand[]),
+      ageBands,
     };
   }
 
@@ -220,15 +284,28 @@ export function adaptDataset(
     monthMap.set(key, m);
   }
 
-  // Convert a raw week → import week template
+  let warnedWeekendReview = false;
+
+  // Convert a raw week → import week template. Returns the absolute (weekNumber, year)
+  // so the caller can build month/year envelopes correctly when anchoring crosses years.
   function convertWeek(raw: RawWeek, fallbackNumber: number) {
-    const weekNum = raw.weekNumber ?? parseNumber(raw.week, 'Week');
+    const rawWeekNum = raw.weekNumber ?? parseNumber(raw.week, 'Week') ?? fallbackNumber;
     const importActivities = raw.activities
       .map(toInlineActivity)
       .filter((a): a is NonNullable<typeof a> => a !== null);
 
+    if (raw.weekendReview && !warnedWeekendReview) {
+      warnedWeekendReview = true;
+      warnings.push('Embedded "weekendReview" blocks were ignored — create reviews from the Weekend Review page after the week begins.');
+    }
+
+    const absolute = anchorMode
+      ? relativeWeekToAbsolute(rawWeekNum, anchorWeek, currentYear)
+      : { weekNumber: rawWeekNum, year: currentYear };
+
     return {
-      weekNumber: weekNum || fallbackNumber,
+      weekNumber: absolute.weekNumber,
+      year: absolute.year,
       activities: importActivities,
       importantNotToMiss: raw.importantNotToMiss ?? [],
       gotchas: raw.gotchas ?? [],
@@ -251,10 +328,15 @@ export function adaptDataset(
     }
 
     let globalWeekCounter = 1;
+    let firstWeekYear: number | undefined;
 
     for (let mi = 0; mi < resolvedMonths.length; mi++) {
       const rm = resolvedMonths[mi];
-      const monthNum = (rm.monthNumber ?? parseNumber(rm.month, 'Month')) as MonthNumber;
+      const rawMonthNum = (rm.monthNumber ?? parseNumber(rm.month, 'Month'));
+
+      const absoluteMonth = anchorMode
+        ? relativeMonthToAbsolute(rawMonthNum, anchorMonth, currentYear)
+        : { month: ((rawMonthNum >= 1 && rawMonthNum <= 12 ? rawMonthNum : mi + 1) as MonthNumber), year: currentYear };
 
       // Resolve weeks referenced in this month
       const weekRefs = rm.weeks ?? [];
@@ -277,13 +359,14 @@ export function adaptDataset(
         if (converted.gotchas.length === 0 && rm.gotchas) {
           converted.gotchas = rm.gotchas;
         }
+        if (firstWeekYear === undefined) firstWeekYear = converted.year;
         globalWeekCounter++;
         return converted;
       });
 
       const themes = rm.themes ?? (rm.theme ? [rm.theme] : []);
       monthImports.push({
-        month: (monthNum >= 1 && monthNum <= 12 ? monthNum : mi + 1) as MonthNumber,
+        month: absoluteMonth.month,
         theme: themes[0] ?? `Month ${mi + 1}`,
         supportThemes: themes.slice(1),
         mustNotMiss: rm.mustNotMiss ?? rm.importantNotToMiss?.join(', ') ?? '',
@@ -292,10 +375,13 @@ export function adaptDataset(
       });
     }
 
+    const ageBandResult = mapAgeBand(rawYear.ageBand, options.childAgeBand);
+    if (ageBandResult.warning) warnings.push(ageBandResult.warning);
+
     const result: YearlyImport = {
       type: 'yearly',
-      year: rawYear.year ?? currentYear,
-      ageBand: mapAgeBand(rawYear.ageBand),
+      year: firstWeekYear ?? currentYear,
+      ageBand: ageBandResult.band,
       goals: rawYear.yearGoal ?? rawYear.goals ?? [],
       months: monthImports,
     };
@@ -306,7 +392,11 @@ export function adaptDataset(
   // ---- If we have months but no year → produce MonthlyImport (first month) ----
   if (rawMonths.length > 0) {
     const rm = rawMonths[0];
-    const monthNum = (rm.monthNumber ?? parseNumber(rm.month, 'Month')) as MonthNumber;
+    const rawMonthNum = (rm.monthNumber ?? parseNumber(rm.month, 'Month'));
+
+    const absoluteMonth = anchorMode
+      ? relativeMonthToAbsolute(rawMonthNum, anchorMonth, currentYear)
+      : { month: ((rawMonthNum >= 1 && rawMonthNum <= 12 ? rawMonthNum : 1) as MonthNumber), year: currentYear };
 
     const weekRefs = rm.weeks ?? [];
     const resolvedWeeks = weekRefs.length > 0
@@ -318,8 +408,8 @@ export function adaptDataset(
 
     const result: MonthlyImport = {
       type: 'monthly',
-      month: (monthNum >= 1 && monthNum <= 12 ? monthNum : 1) as MonthNumber,
-      year: currentYear,
+      month: absoluteMonth.month,
+      year: weekTemplates[0]?.year ?? absoluteMonth.year,
       theme: themes[0] ?? 'Imported Month',
       supportThemes: themes.slice(1),
       mustNotMiss: rm.mustNotMiss ?? rm.importantNotToMiss?.join(', ') ?? '',
@@ -338,7 +428,7 @@ export function adaptDataset(
     const result: WeeklyImport = {
       type: 'weekly',
       weekNumber: converted.weekNumber,
-      year: currentYear,
+      year: converted.year,
       activities: converted.activities,
       importantNotToMiss: converted.importantNotToMiss,
       gotchas: converted.gotchas,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { nanoid } from 'nanoid';
 import { Card, Button, EmptyState, Modal, TextArea } from '../components/ui';
 import { useWeekPlanStore, useActivityStore } from '../store';
@@ -18,11 +18,15 @@ function nextStatus(current: ActivityStatus): ActivityStatus {
   return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
 }
 
+type JumpTo = { weekNumber: number; year: number };
+
 export function WeekPlannerPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const jumpTo = (location.state as { jumpTo?: JumpTo } | null)?.jumpTo;
   const { child } = useActiveChild();
   const ageBandInfo = useAgeBand();
-  const { weekNumber, year, weekRange, isCurrentWeek, goNext, goPrev, goToCurrentWeek } = useCurrentWeek();
+  const { weekNumber, year, weekRange, isCurrentWeek, goNext, goPrev, goToCurrentWeek } = useCurrentWeek(jumpTo);
   const { getPlanByWeek, addWeekPlan, setActivityStatus, updateWeekActivity, removeActivityFromWeek, updateWeekPlan } = useWeekPlanStore();
   const getActivity = useActivityStore((s) => s.getActivity);
 

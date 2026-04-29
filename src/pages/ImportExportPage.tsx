@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Button, Badge, EmptyState, Modal } from '../components/ui';
 import { useActiveChild } from '../hooks/useActiveChild';
 import { useActivityStore, useWeekPlanStore, useMonthPlanStore, useYearPlanStore } from '../store';
@@ -19,6 +20,7 @@ const ACTION_STYLES: Record<PreviewAction, { bg: string; text: string; label: st
 
 export function ImportExportPage() {
   const { child } = useActiveChild();
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const datasetInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,6 +34,8 @@ export function ImportExportPage() {
     'idle' | 'reading' | 'validating' | 'ready' | 'importing' | 'done'
   >('idle');
   const [importSummary, setImportSummary] = useState('');
+  const [importedFirstWeek, setImportedFirstWeek] = useState<{ weekNumber: number; year: number } | null>(null);
+  const [anchorToCurrent, setAnchorToCurrent] = useState(true);
 
   // Store accessors
   const activityStore = useActivityStore();
@@ -55,6 +59,7 @@ export function ImportExportPage() {
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     setImportStatus('reading');
@@ -86,6 +91,8 @@ export function ImportExportPage() {
           setPreview(prev);
           setImportStatus('ready');
           setShowPreview(true);
+        } else {
+          setImportStatus('idle');
         }
       } catch {
         setErrors(['Invalid JSON file — could not parse']);
@@ -94,63 +101,92 @@ export function ImportExportPage() {
         setImportStatus('idle');
       }
     };
+    reader.onerror = () => {
+      console.error('[import] FileReader error on', file.name, reader.error);
+      setErrors([`Failed to read "${file.name}" — ${reader.error?.message ?? 'unknown error'}`]);
+      setImportStatus('idle');
+    };
     reader.readAsText(file);
-    e.target.value = '';
   }, [child, storeAccessors]);
 
   const handleDatasetSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
+    // Snapshot files into a plain array BEFORE clearing the input — `e.target.files`
+    // is a live FileList tied to the input element. Clearing `e.target.value`
+    // empties it and would break the `loaded === total` gate below.
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    if (files.length === 0) return;
 
+    const total = files.length;
     setImportStatus('reading');
     setErrors([]);
     setWarnings([]);
 
     const entries: { name: string; content: string }[] = [];
     let loaded = 0;
+    let aborted = false;
 
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
+    const finish = () => {
+      try {
+        setImportStatus('validating');
+
+        const { files: parsedFiles, errors: parseErrors } = parseDatasetFiles(entries);
+        if (parseErrors.length > 0) {
+          setErrors(parseErrors);
+        }
+
+        const result = adaptDataset(parsedFiles, {
+          childAgeBand: child?.ageBand,
+          anchorToCurrent,
+        });
+        if (!result.valid || !result.data) {
+          setErrors((prev) => [...prev, ...result.errors]);
+          setWarnings(result.warnings);
+          setImportData(null);
+          setPreview(null);
+          setImportStatus('idle');
+          return;
+        }
+
+        setWarnings(result.warnings);
+        setImportData(result.data);
+
+        if (child) {
+          const prev = generatePreview(result.data, child.id, storeAccessors);
+          prev.warnings = [...result.warnings, ...prev.warnings];
+          setPreview(prev);
+          setImportStatus('ready');
+          setShowPreview(true);
+        } else {
+          setImportStatus('idle');
+        }
+      } catch (err) {
+        console.error('[import] dataset adapt failed:', err);
+        setErrors((prev) => [...prev, `Dataset processing failed: ${err instanceof Error ? err.message : String(err)}`]);
+        setImportData(null);
+        setPreview(null);
+        setImportStatus('idle');
+      }
+    };
+
+    for (const file of files) {
       const reader = new FileReader();
       reader.onload = (evt) => {
+        if (aborted) return;
         entries.push({ name: file.name, content: evt.target?.result as string });
         loaded++;
-
-        if (loaded === fileList.length) {
-          setImportStatus('validating');
-
-          const { files, errors: parseErrors } = parseDatasetFiles(entries);
-          if (parseErrors.length > 0) {
-            setErrors(parseErrors);
-          }
-
-          const result = adaptDataset(files);
-          if (!result.valid || !result.data) {
-            setErrors((prev) => [...prev, ...result.errors]);
-            setWarnings(result.warnings);
-            setImportData(null);
-            setPreview(null);
-            setImportStatus('idle');
-            return;
-          }
-
-          setWarnings(result.warnings);
-          setImportData(result.data);
-
-          if (child) {
-            const prev = generatePreview(result.data, child.id, storeAccessors);
-            prev.warnings = [...result.warnings, ...prev.warnings];
-            setPreview(prev);
-            setImportStatus('ready');
-            setShowPreview(true);
-          }
-        }
+        if (loaded === total) finish();
+      };
+      reader.onerror = () => {
+        if (aborted) return;
+        aborted = true;
+        console.error('[import] FileReader error on', file.name, reader.error);
+        setErrors([`Failed to read "${file.name}" — ${reader.error?.message ?? 'unknown error'}`]);
+        setImportStatus('idle');
       };
       reader.readAsText(file);
     }
-
-    e.target.value = '';
-  }, [child, storeAccessors]);
+  }, [child, storeAccessors, anchorToCurrent]);
 
   const handleConfirmImport = useCallback(() => {
     if (!importData || !child) return;
@@ -158,12 +194,13 @@ export function ImportExportPage() {
 
     // Small delay to show the "importing" state visually
     setTimeout(() => {
-      applyImport(importData, child.id, storeAccessors);
+      const applied = applyImport(importData, child.id, storeAccessors);
 
       const summary = preview
         ? `${preview.type} plan · ${preview.totalNewActivities} activities added · ${preview.totalNewWeeks} new week(s)`
         : 'Plan imported';
 
+      setImportedFirstWeek(applied.firstWeek ?? null);
       setImportSummary(summary);
       setImportStatus('done');
       setShowPreview(false);
@@ -264,6 +301,21 @@ export function ImportExportPage() {
               Dataset import: select all your JSON files at once — activity_library.json, weeks.json, months.json, year.json
             </p>
 
+            <label className="flex items-start gap-2 text-xs text-surface-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={anchorToCurrent}
+                onChange={(e) => setAnchorToCurrent(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <strong>Anchor &quot;Week 1 / Month 1&quot; to my current week</strong>
+                <span className="block text-surface-400">
+                  When the dataset has no explicit year, plan it relative to today instead of literal calendar week 1.
+                </span>
+              </span>
+            </label>
+
             {/* Errors */}
             {errors.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -312,12 +364,24 @@ export function ImportExportPage() {
                     {importSummary && <div className="text-xs text-emerald-600 mt-0.5">{importSummary}</div>}
                   </div>
                 </div>
-                <button
-                  onClick={() => { setImportStatus('idle'); setImportSummary(''); }}
-                  className="text-xs text-emerald-500 underline mt-2"
-                >
-                  Dismiss
-                </button>
+                <div className="flex flex-wrap items-center gap-3 mt-2">
+                  {importedFirstWeek && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        navigate('/week', { state: { jumpTo: importedFirstWeek } });
+                      }}
+                    >
+                      Open Week {importedFirstWeek.weekNumber}
+                    </Button>
+                  )}
+                  <button
+                    onClick={() => { setImportStatus('idle'); setImportSummary(''); setImportedFirstWeek(null); }}
+                    className="text-xs text-emerald-500 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -422,8 +422,16 @@ function applyWeek(
   return newPlan.id;
 }
 
-export function applyImport(data: PlanImport, childId: string, stores: StoreAccessors): void {
+export interface ApplyResult {
+  firstWeek?: { weekNumber: number; year: number };
+}
+
+export function applyImport(data: PlanImport, childId: string, stores: StoreAccessors): ApplyResult {
   const now = new Date().toISOString();
+  const result: ApplyResult = {};
+  const recordFirst = (weekNumber: number, year: number) => {
+    if (!result.firstWeek) result.firstWeek = { weekNumber, year };
+  };
 
   if (data.type === 'weekly') {
     applyWeek(
@@ -432,7 +440,8 @@ export function applyImport(data: PlanImport, childId: string, stores: StoreAcce
       childId,
       stores,
     );
-    return;
+    recordFirst(data.weekNumber, data.year);
+    return result;
   }
 
   if (data.type === 'monthly') {
@@ -441,6 +450,7 @@ export function applyImport(data: PlanImport, childId: string, stores: StoreAcce
     for (const w of data.weeks) {
       const wpId = applyWeek(w, data.year, childId, stores);
       weekPlanIds.push(wpId);
+      recordFirst(w.weekNumber, data.year);
     }
 
     const existingMonth = stores.getPlanByMonth(childId, data.month, data.year);
@@ -470,7 +480,7 @@ export function applyImport(data: PlanImport, childId: string, stores: StoreAcce
         updatedAt: now,
       });
     }
-    return;
+    return result;
   }
 
   if (data.type === 'yearly') {
@@ -481,6 +491,7 @@ export function applyImport(data: PlanImport, childId: string, stores: StoreAcce
       for (const w of m.weeks) {
         const wpId = applyWeek(w, data.year, childId, stores);
         weekPlanIds.push(wpId);
+        recordFirst(w.weekNumber, data.year);
       }
 
       const existingMonth = stores.getPlanByMonth(childId, m.month, data.year);
@@ -538,4 +549,6 @@ export function applyImport(data: PlanImport, childId: string, stores: StoreAcce
       });
     }
   }
+
+  return result;
 }
